@@ -2,7 +2,14 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
+.venv/
 .env
+.coverage
+
+# Databases & Caches
+data/.threat_intel_cache/
+data/soc_alerts.db
 
 # Project specific
 logs/*

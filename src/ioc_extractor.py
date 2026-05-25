@@ -14,9 +14,10 @@ Returns typed IOC objects with category labels and deduplication.
 
 import re
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 from ipaddress import ip_address, IPv4Address
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +25,11 @@ logger = logging.getLogger(__name__)
 @dataclass
 class IOC:
     """Represents a single Indicator of Compromise."""
+
     value: str
-    ioc_type: str          # ip, url, domain, hash_md5, hash_sha1, hash_sha256, email
+    ioc_type: str  # ip, url, domain, hash_md5, hash_sha1, hash_sha256, email
     source_alert_id: str
-    context: str = ""      # Surrounding text where IOC was found
+    context: str = ""  # Surrounding text where IOC was found
     is_private: bool = False
 
     def to_dict(self) -> dict:
@@ -53,50 +55,41 @@ class IOCExtractor:
 
     # IPv4 — captures standard dotted notation
     IP_PATTERN = re.compile(
-        r'\b(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}'
-        r'(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\b'
+        r"\b(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}"
+        r"(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\b"
     )
 
     # URL — HTTP/HTTPS with path
-    URL_PATTERN = re.compile(
-        r'https?://[^\s<>"\')\]},;]+',
-        re.IGNORECASE
-    )
+    URL_PATTERN = re.compile(r'https?://[^\s<>"\')\]},;]+', re.IGNORECASE)
 
     # Domain — standard domain format (excludes IPs)
     DOMAIN_PATTERN = re.compile(
-        r'\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)'
-        r'+(?:com|net|org|xyz|info|io|co|biz|ru|cn|tk|ml|ga|cf|gq|top'
-        r'|club|online|site|tech|store|app|dev|me)\b',
-        re.IGNORECASE
+        r"\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)"
+        r"+(?:com|net|org|xyz|info|io|co|biz|ru|cn|tk|ml|ga|cf|gq|top"
+        r"|club|online|site|tech|store|app|dev|me)\b",
+        re.IGNORECASE,
     )
 
     # File Hashes
-    SHA256_PATTERN = re.compile(r'\b[a-fA-F0-9]{64}\b')
-    SHA1_PATTERN = re.compile(r'\b[a-fA-F0-9]{40}\b')
-    MD5_PATTERN = re.compile(r'\b[a-fA-F0-9]{32}\b')
+    SHA256_PATTERN = re.compile(r"\b[a-fA-F0-9]{64}\b")
+    SHA1_PATTERN = re.compile(r"\b[a-fA-F0-9]{40}\b")
+    MD5_PATTERN = re.compile(r"\b[a-fA-F0-9]{32}\b")
 
     # Email
-    EMAIL_PATTERN = re.compile(
-        r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b'
-    )
+    EMAIL_PATTERN = re.compile(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b")
 
     # Private/reserved IP ranges to exclude
     PRIVATE_RANGES = [
-        re.compile(r'^10\.'),
-        re.compile(r'^172\.(1[6-9]|2\d|3[01])\.'),
-        re.compile(r'^192\.168\.'),
-        re.compile(r'^127\.'),
-        re.compile(r'^0\.'),
-        re.compile(r'^169\.254\.'),
-        re.compile(r'^255\.'),
+        re.compile(r"^10\."),
+        re.compile(r"^172\.(1[6-9]|2\d|3[01])\."),
+        re.compile(r"^192\.168\."),
+        re.compile(r"^127\."),
+        re.compile(r"^0\."),
+        re.compile(r"^169\.254\."),
+        re.compile(r"^255\."),
     ]
 
-    # Common false-positive domains to exclude
-    DOMAIN_WHITELIST = {
-        "google.com", "microsoft.com", "github.com",
-        "amazonaws.com", "cloudflare.com", "mozilla.org",
-    }
+    # Common false-positive domains to exclude are in settings.DOMAIN_WHITELIST
 
     def __init__(self, extract_private_ips: bool = False):
         """
@@ -125,7 +118,9 @@ class IOCExtractor:
         # Also check src_ip and dst_ip fields directly
         for ip_field in [alert.src_ip, alert.dst_ip]:
             if ip_field:
-                ip_ioc = self._create_ip_ioc(ip_field, alert_id, f"Alert field: {ip_field}")
+                ip_ioc = self._create_ip_ioc(
+                    ip_field, alert_id, f"Alert field: {ip_field}"
+                )
                 if ip_ioc:
                     iocs.append(ip_ioc)
 
@@ -171,7 +166,9 @@ class IOCExtractor:
         all_iocs = []
         for alert in alerts:
             all_iocs.extend(self.extract_from_alert(alert))
-        logger.info(f"Batch extraction complete: {len(all_iocs)} total IOCs from {len(alerts)} alerts")
+        logger.info(
+            f"Batch extraction complete: {len(all_iocs)} total IOCs from {len(alerts)} alerts"
+        )
         return all_iocs
 
     # ── Private extraction methods ───────────────────────────────
@@ -186,7 +183,9 @@ class IOCExtractor:
                 iocs.append(ioc)
         return iocs
 
-    def _create_ip_ioc(self, ip_str: str, source_id: str, context: str) -> Optional[IOC]:
+    def _create_ip_ioc(
+        self, ip_str: str, source_id: str, context: str
+    ) -> Optional[IOC]:
         """Create an IP IOC with validation and dedup."""
         is_private = self._is_private_ip(ip_str)
 
@@ -216,12 +215,14 @@ class IOCExtractor:
                 continue
             self._seen.add(dedup_key)
 
-            iocs.append(IOC(
-                value=url,
-                ioc_type="url",
-                source_alert_id=source_id,
-                context=self._get_context(text, match),
-            ))
+            iocs.append(
+                IOC(
+                    value=url,
+                    ioc_type="url",
+                    source_alert_id=source_id,
+                    context=self._get_context(text, match),
+                )
+            )
         return iocs
 
     def _extract_domains(self, text: str, source_id: str) -> list[IOC]:
@@ -231,7 +232,7 @@ class IOCExtractor:
         url_domains = set()
         for match in self.URL_PATTERN.finditer(text):
             url = match.group()
-            domain_match = re.search(r'https?://([^/:\s]+)', url)
+            domain_match = re.search(r"https?://([^/:\s]+)", url)
             if domain_match:
                 url_domains.add(domain_match.group(1).lower())
 
@@ -239,7 +240,7 @@ class IOCExtractor:
             domain = match.group().lower()
             if domain in url_domains:
                 continue
-            if domain in self.DOMAIN_WHITELIST:
+            if domain in settings.DOMAIN_WHITELIST:
                 continue
 
             dedup_key = ("domain", domain)
@@ -247,12 +248,14 @@ class IOCExtractor:
                 continue
             self._seen.add(dedup_key)
 
-            iocs.append(IOC(
-                value=domain,
-                ioc_type="domain",
-                source_alert_id=source_id,
-                context=self._get_context(text, match),
-            ))
+            iocs.append(
+                IOC(
+                    value=domain,
+                    ioc_type="domain",
+                    source_alert_id=source_id,
+                    context=self._get_context(text, match),
+                )
+            )
         return iocs
 
     def _extract_hashes(self, text: str, source_id: str) -> list[IOC]:
@@ -268,42 +271,52 @@ class IOCExtractor:
                 dedup_key = ("hash_sha256", hash_val)
                 if dedup_key not in self._seen:
                     self._seen.add(dedup_key)
-                    iocs.append(IOC(
-                        value=hash_val,
-                        ioc_type="hash_sha256",
-                        source_alert_id=source_id,
-                        context=self._get_context(text, match),
-                    ))
+                    iocs.append(
+                        IOC(
+                            value=hash_val,
+                            ioc_type="hash_sha256",
+                            source_alert_id=source_id,
+                            context=self._get_context(text, match),
+                        )
+                    )
 
         # SHA1 (40 chars — exclude substrings of SHA256)
         for match in self.SHA1_PATTERN.finditer(text):
             hash_val = match.group().lower()
-            if hash_val not in found_hashes and not any(hash_val in h for h in found_hashes if len(h) == 64):
+            if hash_val not in found_hashes and not any(
+                hash_val in h for h in found_hashes if len(h) == 64
+            ):
                 found_hashes.add(hash_val)
                 dedup_key = ("hash_sha1", hash_val)
                 if dedup_key not in self._seen:
                     self._seen.add(dedup_key)
-                    iocs.append(IOC(
-                        value=hash_val,
-                        ioc_type="hash_sha1",
-                        source_alert_id=source_id,
-                        context=self._get_context(text, match),
-                    ))
+                    iocs.append(
+                        IOC(
+                            value=hash_val,
+                            ioc_type="hash_sha1",
+                            source_alert_id=source_id,
+                            context=self._get_context(text, match),
+                        )
+                    )
 
         # MD5 (32 chars — exclude substrings of longer hashes)
         for match in self.MD5_PATTERN.finditer(text):
             hash_val = match.group().lower()
-            if hash_val not in found_hashes and not any(hash_val in h for h in found_hashes if len(h) > 32):
+            if hash_val not in found_hashes and not any(
+                hash_val in h for h in found_hashes if len(h) > 32
+            ):
                 found_hashes.add(hash_val)
                 dedup_key = ("hash_md5", hash_val)
                 if dedup_key not in self._seen:
                     self._seen.add(dedup_key)
-                    iocs.append(IOC(
-                        value=hash_val,
-                        ioc_type="hash_md5",
-                        source_alert_id=source_id,
-                        context=self._get_context(text, match),
-                    ))
+                    iocs.append(
+                        IOC(
+                            value=hash_val,
+                            ioc_type="hash_md5",
+                            source_alert_id=source_id,
+                            context=self._get_context(text, match),
+                        )
+                    )
 
         return iocs
 
@@ -317,12 +330,14 @@ class IOCExtractor:
                 continue
             self._seen.add(dedup_key)
 
-            iocs.append(IOC(
-                value=email,
-                ioc_type="email",
-                source_alert_id=source_id,
-                context=self._get_context(text, match),
-            ))
+            iocs.append(
+                IOC(
+                    value=email,
+                    ioc_type="email",
+                    source_alert_id=source_id,
+                    context=self._get_context(text, match),
+                )
+            )
         return iocs
 
     # ── Utility methods ──────────────────────────────────────────

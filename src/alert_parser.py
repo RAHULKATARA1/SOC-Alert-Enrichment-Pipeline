@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Alert:
     """Normalized alert structure for SOC pipeline processing."""
+
     alert_id: str
     timestamp: datetime
     alert_name: str
@@ -66,10 +67,16 @@ class AlertParser:
 
     # Supported alert types for classification
     VALID_ALERT_TYPES = {
-        "phishing_email", "malware_detected", "c2_communication",
-        "brute_force", "data_exfiltration", "ransomware",
-        "suspicious_powershell", "credential_theft",
-        "lateral_movement", "persistence_mechanism",
+        "phishing_email",
+        "malware_detected",
+        "c2_communication",
+        "brute_force",
+        "data_exfiltration",
+        "ransomware",
+        "suspicious_powershell",
+        "credential_theft",
+        "lateral_movement",
+        "persistence_mechanism",
         "unknown",
     }
 
@@ -141,7 +148,9 @@ class AlertParser:
         # ── Normalize timestamp ──
         timestamp = self._parse_timestamp(raw["timestamp"])
         if not timestamp:
-            error_msg = f"Invalid timestamp format in alert {alert_id}: {raw['timestamp']}"
+            error_msg = (
+                f"Invalid timestamp format in alert {alert_id}: {raw['timestamp']}"
+            )
             logger.warning(error_msg)
             self._parse_errors.append({"raw": raw, "error": error_msg})
             return None
@@ -149,7 +158,9 @@ class AlertParser:
         # ── Normalize alert type ──
         alert_type = raw.get("alert_type", "unknown").lower().strip()
         if alert_type not in self.VALID_ALERT_TYPES:
-            logger.debug(f"Unknown alert type '{alert_type}' for {alert_id}, setting to 'unknown'")
+            logger.debug(
+                f"Unknown alert type '{alert_type}' for {alert_id}, setting to 'unknown'"
+            )
             alert_type = "unknown"
 
         # ── Build Alert object ──

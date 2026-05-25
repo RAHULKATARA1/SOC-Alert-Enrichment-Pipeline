@@ -34,17 +34,17 @@ ABUSEIPDB_BASE_URL = "https://api.abuseipdb.com/api/v2"
 ALIENVAULT_OTX_BASE_URL = "https://otx.alienvault.com/api/v1"
 
 # ─── Rate Limiting ───────────────────────────────────────────────
-VT_RATE_LIMIT = int(os.getenv("VT_RATE_LIMIT", "4"))        # requests per minute (free tier)
+VT_RATE_LIMIT = int(os.getenv("VT_RATE_LIMIT", "4"))  # requests per minute (free tier)
 ABUSEIPDB_RATE_LIMIT = int(os.getenv("ABUSEIPDB_RATE_LIMIT", "60"))  # per minute
-OTX_RATE_LIMIT = int(os.getenv("OTX_RATE_LIMIT", "100"))    # per minute
+OTX_RATE_LIMIT = int(os.getenv("OTX_RATE_LIMIT", "100"))  # per minute
 
 # ─── Severity Thresholds ─────────────────────────────────────────
 SEVERITY_THRESHOLDS = {
-    "CRITICAL": 80,   # score >= 80
-    "HIGH": 60,       # score >= 60
-    "MEDIUM": 40,     # score >= 40
-    "LOW": 20,        # score >= 20
-    "INFO": 0,        # score >= 0
+    "CRITICAL": 80,  # score >= 80
+    "HIGH": 60,  # score >= 60
+    "MEDIUM": 40,  # score >= 40
+    "LOW": 20,  # score >= 20
+    "INFO": 0,  # score >= 0
 }
 
 # Severity scoring weights (must sum to 1.0)
@@ -105,3 +105,13 @@ OFFLINE_MODE = not any([VIRUSTOTAL_API_KEY, ABUSEIPDB_API_KEY, ALIENVAULT_OTX_AP
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)-20s | %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+# ─── Filtering ────────────────────────────────────────────────────
+DOMAIN_WHITELIST = {
+    "google.com",
+    "microsoft.com",
+    "github.com",
+    "amazonaws.com",
+    "cloudflare.com",
+    "mozilla.org",
+}

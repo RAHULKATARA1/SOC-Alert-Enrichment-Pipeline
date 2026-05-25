@@ -7,6 +7,7 @@ IOC enrichment data, MITRE ATT&CK mapping, and SOAR response actions.
 
 import json
 import logging
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 from config import settings
@@ -21,15 +22,43 @@ class ReportGenerator:
 
     def __init__(self):
         self.reports_dir = settings.REPORTS_DIR
-        logger.info(f"ReportGenerator initialized. Output dir: {self.reports_dir}")
+        self.db_path = settings.DATA_DIR / "soc_alerts.db"
+        self._setup_database()
+        logger.info(f"ReportGenerator initialized. Output dir: {self.reports_dir}, DB: {self.db_path}")
 
-    def generate_incident_report(self, alert: Alert, severity: str, score: float, 
-                                 ioc_reports: list[ThreatIntelReport], mitre_tactics: list[dict],
-                                 response_actions: list[dict]) -> Path:
+    def _setup_database(self):
+        """Initialize the SQLite database for historical reporting."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS incident_reports (
+                        incident_id TEXT PRIMARY KEY,
+                        alert_name TEXT,
+                        severity TEXT,
+                        score REAL,
+                        timestamp TEXT,
+                        mitre_tactic TEXT,
+                        raw_report_json TEXT
+                    )
+                ''')
+                conn.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Database setup failed: {e}")
+
+    def generate_incident_report(
+        self,
+        alert: Alert,
+        severity: str,
+        score: float,
+        ioc_reports: list[ThreatIntelReport],
+        mitre_tactics: list[dict],
+        response_actions: list[dict],
+    ) -> Path:
         """Generate a complete JSON incident report."""
-        
+
         report_id = f"INC-{alert.alert_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        
+
         report_data = {
             "incident_id": report_id,
             "generated_at": datetime.now().isoformat(),
@@ -41,33 +70,53 @@ class ReportGenerator:
                 "score": score,
                 "source": alert.source,
                 "timestamp": alert.timestamp.isoformat(),
-                "mitre_primary_tactic": alert.mitre_tactic
+                "mitre_primary_tactic": alert.mitre_tactic,
             },
             "investigation": {
                 "raw_log": alert.raw_log,
                 "source_ip": alert.src_ip,
                 "destination_ip": alert.dst_ip,
-                "user": alert.user
+                "user": alert.user,
             },
             "threat_intelligence": [r.to_dict() for r in ioc_reports],
             "mitre_attack_mapping": mitre_tactics,
-            "automated_responses": response_actions
+            "automated_responses": response_actions,
         }
-        
+
         filepath = self.reports_dir / f"{report_id}.json"
-        
+
         try:
-            with open(filepath, 'w') as f:
+            # 1. Save JSON to disk
+            with open(filepath, "w") as f:
                 json.dump(report_data, f, indent=4)
-            logger.info(f"Incident report generated: {filepath.name}")
+                
+            # 2. Persist to SQLite Database
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO incident_reports 
+                    (incident_id, alert_name, severity, score, timestamp, mitre_tactic, raw_report_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    report_id,
+                    alert.alert_name,
+                    severity,
+                    score,
+                    alert.timestamp.isoformat(),
+                    alert.mitre_tactic,
+                    json.dumps(report_data)
+                ))
+                conn.commit()
+                
+            logger.info(f"Incident report generated and saved to DB: {filepath.name}")
             return filepath
         except Exception as e:
-            logger.error(f"Failed to write incident report: {e}")
+            logger.error(f"Failed to generate incident report: {e}")
             return None
 
     def generate_metrics_summary(self, processing_stats: dict) -> Path:
         """Generate an HTML summary of SOC pipeline execution."""
-        
+
         html = f"""
         <!DOCTYPE html>
         <html>
@@ -124,11 +173,11 @@ class ReportGenerator:
                 <table>
                     <tr><th>Severity</th><th>Count</th></tr>
         """
-        
-        for sev, count in processing_stats.get('severity_counts', {}).items():
-            css_class = sev.lower() if sev in ['CRITICAL', 'HIGH'] else ''
+
+        for sev, count in processing_stats.get("severity_counts", {}).items():
+            css_class = sev.lower() if sev in ["CRITICAL", "HIGH"] else ""
             html += f"<tr><td class='{css_class}'>{sev}</td><td>{count}</td></tr>"
-            
+
         html += """
                 </table>
                 <p style="margin-top:30px; font-size:12px; color:#95a5a6;">
@@ -138,11 +187,14 @@ class ReportGenerator:
         </body>
         </html>
         """
-        
-        filepath = self.reports_dir / f"metrics_summary_{datetime.now().strftime('%Y%m%d%H%M%S')}.html"
-        
+
+        filepath = (
+            self.reports_dir
+            / f"metrics_summary_{datetime.now().strftime('%Y%m%d%H%M%S')}.html"
+        )
+
         try:
-            with open(filepath, 'w') as f:
+            with open(filepath, "w") as f:
                 f.write(html)
             logger.info(f"Metrics summary HTML generated: {filepath.name}")
             return filepath
