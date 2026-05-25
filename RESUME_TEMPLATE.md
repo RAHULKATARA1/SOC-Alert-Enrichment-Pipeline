@@ -1,8 +1,6 @@
-# 📄 Resume Integration Guide
+# 📄 Resume 
 
-Here are 4 highly-optimized, ATS-friendly resume bullet points using the **XYZ formula** (Accomplished [X] as measured by [Y], by doing [Z]). These are designed to hit the keywords recruiters look for while showing massive business impact.
 
-You can copy and paste these directly under the project section of your resume:
 
 ---
 
