@@ -15,8 +15,4 @@ You can copy and paste these directly under the project section of your resume:
 
 ---
 
-### 💡 Why these work for ATS and Recruiters:
-* **Bullet 1** proves you understand the *business value* of security engineering (MTTR reduction, SOAR).
-* **Bullet 2** proves you are a *strong developer* (concurrency, backend, scalability, ThreadPools).
-* **Bullet 3** hits major *technical keywords* (SQLite3, APIs, Caching, Threat Intel, VirusTotal).
-* **Bullet 4** proves you understand *core cybersecurity concepts* (Regex, IOC extraction, MITRE ATT&CK framework, risk scoring).
+
